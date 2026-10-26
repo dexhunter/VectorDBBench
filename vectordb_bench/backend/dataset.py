@@ -283,7 +283,7 @@ class ParquetGroundTruth:
             msg = f"Ground truth file {path} is missing fields: {missing_fields}"
             raise ValueError(msg)
 
-        query_ids = parquet_file.read(columns=[id_field]).column(0).to_pylist()
+        query_ids = parquet_file.read(columns=[id_field], use_threads=False).column(0).to_pylist()
         if query_ids != list(expected_query_ids):
             msg = f"Ground truth query IDs in {path} do not match the selected query file"
             raise ValueError(msg)
@@ -291,7 +291,8 @@ class ParquetGroundTruth:
         row_count = parquet_file.metadata.num_rows
         minimum_observed_width = None
         observed_rows = 0
-        for batch in parquet_file.iter_batches(batch_size=1, columns=[neighbors_field]):
+        # Decode the single column inline to avoid worker handoffs for each small batch.
+        for batch in parquet_file.iter_batches(batch_size=16, columns=[neighbors_field], use_threads=False):
             for row in batch.column(0):
                 if not row.is_valid:
                     msg = f"Ground truth file {path} contains a null neighbors row"
